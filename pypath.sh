@@ -1,0 +1,1 @@
+export PYTHONPATH="${PYTHONPATH}:/home/sunho/research/diffusion_policy/controllable_diffusion_policy/"
