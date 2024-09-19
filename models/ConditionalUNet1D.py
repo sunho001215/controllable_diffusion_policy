@@ -191,7 +191,7 @@ class ConditionalUnet1D(nn.Module):
         x = self.final_conv(x)
 
         # (B,C,T)
-        x = x.moveaxs(-1,-2)
+        x = x.moveaxis(-1,-2)
         # (B,T,C)
 
         return x
