@@ -18,13 +18,14 @@ from utils.open3d_utils import (
 import torch
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 from models.ConditionalUNet1D import ConditionalUnet1D
+from utils.tools import ortho6d_to_SO3, create_se3_matrix
 
 # parameters
 model_path = "./params/pouring_dataset/basic_DDPM/model_ep2500.pt"
 device = 'cuda'
 num_diffusion_iters = 100
 input_len = 480
-input_dim = 12
+input_dim = 9
 skip_size = 5
 
 # color template (2023 pantone top 10 colors)
@@ -102,8 +103,8 @@ class AppWindow:
             global_cond_dim=0
         )
 
-        state_dict = torch.load(model_path, map_location='cuda')
-        noise_pred_net.load_state_dict(state_dict)
+        noise_pred_net = torch.load(model_path, map_location='cuda')
+        # noise_pred_net.load_state_dict(state_dict)
         self.noise_pred_net = noise_pred_net
 
         print('Pretrained weights loaded.')
@@ -203,9 +204,12 @@ class AppWindow:
                     sample=naction
                 ).prev_sample
         
-        naction = naction.detach().to('cpu').numpy()
+        # naction = naction.detach().to('cpu').numpy()
         naction = naction[0]
 
+        R = ortho6d_to_SO3(naction[:,:6])
+        p = naction[:,6:]
+        self.traj = create_se3_matrix(R, p).detach().to('cpu').numpy()
 
         # load bottle
         self.mesh_bottle = get_mesh_bottle(

@@ -10,7 +10,7 @@ import open3d.visualization.rendering as rendering
 
 from copy import deepcopy
 
-from vis_utils.open3d_utils import (
+from utils.open3d_utils import (
     get_mesh_bottle, 
     get_mesh_mug, 
 )
