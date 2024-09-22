@@ -17,11 +17,13 @@ from utils.open3d_utils import (
 
 import torch
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
+from diffusers.schedulers.scheduling_ddim import DDIMScheduler
 from models.ConditionalUNet1D import ConditionalUnet1D
 from utils.tools import ortho6d_to_SO3, create_se3_matrix
 
 # parameters
-model_path = "./params/pouring_dataset/basic_DDPM/model_ep2500.pt"
+model = "DDPM"
+model_path = "./params/pouring_dataset/" + model + "/model_ep5000.pt"
 device = 'cuda'
 num_diffusion_iters = 100
 input_len = 480
@@ -103,18 +105,33 @@ class AppWindow:
             global_cond_dim=0
         )
 
-        noise_pred_net = torch.load(model_path, map_location='cuda')
+        noise_pred_net = torch.load(model_path, map_location='cuda', weights_only=False)
         # noise_pred_net.load_state_dict(state_dict)
         self.noise_pred_net = noise_pred_net
 
         print('Pretrained weights loaded.')
 
-        noise_scheduler = DDPMScheduler(
-            num_train_timesteps = num_diffusion_iters,
-            beta_schedule='squaredcos_cap_v2',
-            clip_sample=True,
-            prediction_type='epsilon'
-        )
+        if model == "DDPM":
+            noise_scheduler = DDPMScheduler(
+                num_train_timesteps=num_diffusion_iters,
+                # Squared cosine
+                beta_schedule='squaredcos_cap_v2',
+                # Clip output to [-1,1]
+                clip_sample=True,
+                prediction_type='epsilon'
+            )
+        elif model == "DDIM":
+            noise_scheduler = DDIMScheduler(
+                num_train_timesteps=num_diffusion_iters,
+                # Squared cosine
+                beta_schedule='squaredcos_cap_v2',
+                # Clip output to [-1,1]
+                clip_sample=True,
+                prediction_type='epsilon'
+            )
+        else:
+            print("Please choose either DDIM or DDPM as the model.")
+            exit()
         self.noise_scheduler = noise_scheduler
 
         _ = self.noise_pred_net.to(device)
@@ -133,25 +150,19 @@ class AppWindow:
         dataset_config = gui.CollapsableVert("Dataset config", 0.25 * em,
                                          gui.Margins(em, 0, 0, 0))
 
-        # Visualize type
-        self._video_button = gui.Button("Video")
-        self._video_button.horizontal_padding_em = 0.5
-        self._video_button.vertical_padding_em = 0
-        self._video_button.set_on_clicked(self._set_vis_mode_video)
-        
-        self._afterimage_button = gui.Button("Afterimage")
+        # Reset        
+        self._afterimage_button = gui.Button("Reset")
         self._afterimage_button.horizontal_padding_em = 0.5
         self._afterimage_button.vertical_padding_em = 0
         self._afterimage_button.set_on_clicked(self._set_vis_mode_afterimage)
         
         h = gui.Horiz(0.25 * em)  # row 1
         h.add_stretch()
-        h.add_child(self._video_button)
         h.add_child(self._afterimage_button)
         h.add_stretch()
 
         # add
-        dataset_config.add_child(gui.Label("Visualize type"))
+        dataset_config.add_child(gui.Label("Visualize"))
         dataset_config.add_child(h)
 
         # add 
@@ -176,10 +187,6 @@ class AppWindow:
                 layout_context, gui.Widget.Constraints()).height)
         self._settings_panel.frame = gui.Rect(r.get_right() - width, r.y, width,
                                               height)
-
-    def _set_vis_mode_video(self):
-        if self.thread_finished:
-            threading.Thread(target=self.update_trajectory_video).start()
 
     def _set_vis_mode_afterimage(self):
         if self.thread_finished:
@@ -259,8 +266,9 @@ class AppWindow:
     def update_trajectory(self):
         # load data
         self.load_data()
-            
+
         # update initials
+        self._scene.scene.clear_geometry()
         self._scene.scene.add_geometry('frame_init', self.frame, self.mat)
         self._scene.scene.add_geometry('mug_init', self.mesh_mug, self.mat)
         self._scene.scene.add_geometry('box_init', self.mesh_box, self.mat)
@@ -280,35 +288,6 @@ class AppWindow:
             # self._scene.scene.add_geometry(f'coord_{idx}', frame_, self.mat)
             if self.draw_bottle_label:
                 self._scene.scene.add_geometry(f'bottle_label_{idx}', mesh_bottle_label_, self.mat)
-
-    def update_trajectory_video(self):
-        # load data
-        self.load_data()
-
-        # update trajectory
-        self.thread_finished = False
-        end_idx = range(0, len(self.traj), 5)[-1]
-        for idx in range(0, len(self.traj), 5):
-            self.mesh_bottle_ = deepcopy(self.mesh_bottle)
-            self.frame_ = deepcopy(self.frame)
-            T = self.traj[idx]
-            self.mesh_bottle_.transform(T)
-            self.frame_.transform(T)
-            if self.draw_bottle_label:
-                self.mesh_bottle_label_ = deepcopy(self.mesh_bottle_label)
-                self.mesh_bottle_label_.transform(T)
-            self.idx = idx
-            if idx == end_idx:
-                self.mesh_box.paint_uniform_color([222/255,184/255,135/255])
-            else:
-                color_scale = 4
-                self.mesh_box.paint_uniform_color(
-                    [222/255/color_scale,184/255/color_scale,135/255/color_scale]
-                )
-            # Update geometry
-            gui.Application.instance.post_to_main_thread(self.window, self.update_bottle_coord)
-            time.sleep(0.05)
-        self.thread_finished = True
 
     def update_bottle_coord(self):
         self._scene.scene.clear_geometry()
