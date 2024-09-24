@@ -40,3 +40,29 @@ class Pouring(Dataset):
 
     def __len__(self) -> int:
         return len(self.traj_data_)
+    
+class PouringAugmented(Dataset):
+    def __init__(
+            self, 
+            root='./datasets/pouring_data_augmented',
+            **kwargs
+        ):
+      
+        self.traj_data_ = [] 
+
+        for file_ in os.listdir(root):
+            with open(os.path.join(root, file_), "rb") as f:
+                data = pickle.load(f)
+                traj = data['traj']
+                self.traj_data_.append(torch.tensor(traj, dtype=torch.float32).unsqueeze(0))
+                    
+        self.traj_data_ = torch.cat(self.traj_data_, dim=0)
+      
+        print(f'Pouring dataset is ready; # of trajectories: {len(self.traj_data_)}')
+            
+    def __getitem__(self, idx):
+        traj = self.traj_data_[idx] # (-, Len, 4, 4)
+        return traj, 0
+
+    def __len__(self) -> int:
+        return len(self.traj_data_)

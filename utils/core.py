@@ -4,7 +4,7 @@ def compute_PMP(x_t, timestep, model, noise_scheduler):
     device = x_t.get_device()
 
     # Get alpha_t
-    alpha_t = noise_scheduler.alphas_cumprod[timestep]
+    alpha_t = noise_scheduler.alphas_cumprod[timestep].to(device)
     sqrt_alpha_t = torch.sqrt(alpha_t)
     sqrt_one_minus_alpha_t = torch.sqrt(1 - alpha_t)
 
@@ -17,29 +17,26 @@ def compute_PMP(x_t, timestep, model, noise_scheduler):
     return PMP
 
 def compute_jacobian(f, x):
-    device = x.get_device()
-    batch_size, traj_len, input_dim = f.shape
+    batch_size, _, _ = x.shape
 
-    # Flatten f and x
-    f = f.view(batch_size, -1)
+    # Define a function that takes x and returns f
+    def _func(x):
+        # Ensure that f is computed with the correct shape, if needed
+        return f(x).view(batch_size, -1)
 
-    # Initialize Jacobian matrix
-    grad_dim = traj_len * input_dim
+    # Compute the Jacobian using torch's autograd functional method
+    jacobian = torch.autograd.functional.jacobian(_func, x, vectorize=False)
 
-    jac = []
-    # Iterate over each dimension
-    for i in range(grad_dim):
-        # Create gradient vector for the i-th output dimension
-        grad_outputs = torch.zeros_like(f)
-        grad_outputs[:, i] = 1.0
+    return jacobian
 
-        # Compute gradients of f with respect to x
-        gradients = torch.autograd.grad(
-            outputs=f, inputs=x, grad_outputs=grad_outputs,
-            create_graph=False, retain_graph=True, only_inputs=True
-        )[0]
-        
-        # Fill in the Jacobian matrix
-        jac.append(gradients.reshape(x.shape).squeeze(0))
+def compute_rank(matrix, eta=0.99):
+    sum_of_squared_svdvals = torch.trace(torch.matmul(torch.transpose(matrix,0,1), matrix))
+
+    top_r_sum_of_squared_svdvals = 0
+    svdvals = torch.linalg.svdvals(matrix)
+    for i in range(len(matrix)):
+        top_r_sum_of_squared_svdvals += svdvals[i] ** 2
+        if top_r_sum_of_squared_svdvals >= sum_of_squared_svdvals * (eta ** 2):
+            break
     
-    return torch.stack(jac).view(grad_dim, -1)
+    return i+1

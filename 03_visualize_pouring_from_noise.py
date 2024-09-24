@@ -22,13 +22,13 @@ from models.ConditionalUNet1D import ConditionalUnet1D
 from utils.tools import ortho6d_to_SO3, create_se3_matrix
 
 # parameters
-model = "DDPM"
-model_path = "./params/pouring_dataset/" + model + "/model_ep5000.pt"
+model = "DDIM"
+model_path = "./params/pouring_dataset_augmented/" + model + "/model_ep500.pt"
 device = 'cuda'
 num_diffusion_iters = 100
 input_len = 480
 input_dim = 9
-skip_size = 5
+skip_size = 2
 
 # color template (2023 pantone top 10 colors)
 rgb = np.zeros((10, 3))
@@ -210,8 +210,7 @@ class AppWindow:
                     timestep=k,
                     sample=naction
                 ).prev_sample
-        
-        # naction = naction.detach().to('cpu').numpy()
+
         naction = naction[0]
 
         R = ortho6d_to_SO3(naction[:,:6])
