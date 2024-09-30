@@ -22,13 +22,13 @@ from models.ConditionalUNet1D import ConditionalUnet1D
 from utils.tools import ortho6d_to_SO3, create_se3_matrix
 
 # parameters
-model = "DDIM"
-model_path = "./params/pouring_dataset_augmented/" + model + "/model_ep500.pt"
+model = "DDPM"
+model_path = "./params/pouring_dataset_augmented/" + model + "/model_ep2499.pt"
 device = 'cuda'
 num_diffusion_iters = 100
 input_len = 480
 input_dim = 9
-skip_size = 2
+skip_size = 5
 
 # color template (2023 pantone top 10 colors)
 rgb = np.zeros((10, 3))
@@ -102,11 +102,11 @@ class AppWindow:
 
         noise_pred_net = ConditionalUnet1D(
             input_dim=input_dim,
-            global_cond_dim=0
+            global_cond_dim=0,
+            down_dims=[128, 128, 128, 256]
         )
 
         noise_pred_net = torch.load(model_path, map_location='cuda', weights_only=False)
-        # noise_pred_net.load_state_dict(state_dict)
         self.noise_pred_net = noise_pred_net
 
         print('Pretrained weights loaded.')
@@ -114,18 +114,14 @@ class AppWindow:
         if model == "DDPM":
             noise_scheduler = DDPMScheduler(
                 num_train_timesteps=num_diffusion_iters,
-                # Squared cosine
-                beta_schedule='squaredcos_cap_v2',
-                # Clip output to [-1,1]
+                beta_schedule='linear',
                 clip_sample=True,
-                prediction_type='epsilon'
+                prediction_type='epsilon',
             )
         elif model == "DDIM":
             noise_scheduler = DDIMScheduler(
                 num_train_timesteps=num_diffusion_iters,
-                # Squared cosine
-                beta_schedule='squaredcos_cap_v2',
-                # Clip output to [-1,1]
+                beta_schedule='linear',
                 clip_sample=True,
                 prediction_type='epsilon'
             )
